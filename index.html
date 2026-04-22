@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>沉入 · 记忆呼吸归位</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #c5bfb2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Noto Serif SC', 'Ma Shan Zheng', '宋体', serif;
+      padding: 20px;
+    }
+    .canvas-container { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .canvas-wrapper {
+      box-shadow: 0 20px 40px rgba(0,0,0,0.08), 0 6px 12px rgba(0,0,0,0.05);
+      line-height: 0; background: #c5bfb2; display: inline-block; max-width: 100%;
+    }
+    canvas {
+      display: block; width: 100%; height: auto; max-width: 100%;
+      border: 1px solid rgba(180, 175, 165, 0.3);
+    }
+
+    /* 控制栏 — 垂直中心对齐 */
+    .memory-control {
+      margin-top: 30px;
+      display: flex;
+      align-items: center;      /* 关键：三个按钮中心对齐 */
+      justify-content: center;
+      gap: 24px;
+      width: 100%;
+    }
+    /* 录制按钮容器：相对定位，为计时器提供锚点 */
+    .record-group {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .glass-icon-btn {
+      display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+      background: rgba(245,240,235,0.28); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(220,210,200,0.45); border-radius: 30px;
+      box-shadow: 0 6px 16px -4px rgba(60,50,40,0.08), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.02), 0 0 0 1px rgba(210,195,180,0.15);
+      color: #3e3a35; cursor: pointer; transition: all 0.2s; user-select: none;
+    }
+    .glass-icon-btn:hover { background: rgba(250,245,240,0.4); backdrop-filter: blur(16px); box-shadow: 0 8px 18px -6px rgba(60,50,40,0.12), inset 0 1px 0 rgba(255,255,255,0.5), 0 0 0 1px rgba(200,180,160,0.25); }
+    .glass-icon-btn:active { transform: scale(0.95); background: rgba(235,225,215,0.55); }
+    .glass-icon-btn svg { width: 20px; height: 20px; fill: none; stroke: #3e3a35; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* 计时器绝对定位，不影响图标对齐 */
+    .record-timer {
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 6px;
+      font-size: 12px; letter-spacing: 2px; color: #5a534a; opacity: 0.8;
+      font-family: 'Noto Serif SC', serif; font-weight: 300; visibility: hidden;
+      white-space: nowrap;
+    }
+    @media screen and (max-width: 768px) {
+      .record-timer { font-size: 5px; letter-spacing: 1px; margin-top: 4px; }
+    }
+
+    .glass-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(245,240,235,0.28); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(220,210,200,0.45); border-radius: 30px; padding: 6px 48px 8px;
+      box-shadow: 0 6px 16px -4px rgba(60,50,40,0.08), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.02), 0 0 0 1px rgba(210,195,180,0.15);
+      color: #3e3a35; font-family: 'Noto Serif SC', serif; cursor: pointer; transition: 0.3s;
+      position: relative;
+    }
+    .glass-btn .main-text {
+      font-size: 20px; letter-spacing: 10px; text-indent: 10px;
+      animation: floatText 3.6s ease-in-out infinite;
+    }
+    .glass-btn .sub-text {
+      font-size: 12px; letter-spacing: 4px; opacity: 0.65; margin-top: -2px;
+      animation: floatText 3.6s ease-in-out infinite 0.2s;
+    }
+    @keyframes floatText {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-2.5px); }
+    }
+    .glass-btn::before {
+      content: ''; position: absolute; inset: -1px; border-radius: 30px; padding: 1px;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,250,0.4), rgba(200,190,180,0.05));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+    }
+    .glass-btn:hover { background: rgba(250,245,240,0.38); backdrop-filter: blur(20px); box-shadow: 0 10px 24px -6px rgba(60,50,40,0.12), inset 0 1px 0 rgba(255,255,255,0.5), 0 0 0 1px rgba(200,180,160,0.25); }
+    .glass-btn:hover .main-text { letter-spacing: 12px; }
+
+    .archive-panel {
+      position: fixed; bottom: 120px; right: 30px; width: 300px; max-height: 400px;
+      background: rgba(245,240,235,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(220,210,200,0.5); border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+      padding: 16px 12px; display: none; flex-direction: column; z-index: 100; color: #3e3a35;
+    }
+    .archive-header { display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid rgba(140,130,120,0.2); margin-bottom: 12px; }
+    .archive-list { overflow-y: auto; }
+    .archive-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 6px; border-bottom: 1px solid rgba(140,130,120,0.1); }
+    .archive-item-name { font-size: 13px; }
+    .archive-item-actions { display: flex; gap: 6px; }
+    .archive-btn {
+      background: rgba(245,240,235,0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      border: 0.8px solid rgba(180,170,160,0.4); border-radius: 20px; padding: 4px 10px;
+      font-size: 11px; color: #3e3a35; cursor: pointer; transition: 0.2s;
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .archive-btn:hover { background: rgba(255,250,245,0.6); backdrop-filter: blur(12px); }
+
+    #fileInput { display: none; }
+    .signature { margin-top: 16px; font-size: 13px; color: #8a847c; letter-spacing: 5px; opacity: 0.6; }
+
+    @media screen and (max-width: 768px) {
+      body { padding: 12px; }
+      .memory-control { margin-top: 20px; gap: 12px; }
+      .glass-icon-btn { width: 34px; height: 34px; }
+      .glass-icon-btn svg { width: 16px; height: 16px; }
+      .glass-btn { padding: 3px 24px 4px; border-radius: 18px; }
+      .glass-btn .main-text { font-size: 10px; letter-spacing: 5px; }
+      .glass-btn .sub-text { font-size: 5px; letter-spacing: 2px; }
+      .signature { font-size: 9px; }
+      .archive-panel { width: 260px; right: 10px; }
+      .archive-btn { font-size: 9px; padding: 3px 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="canvas-container">
+  <div class="canvas-wrapper">
+    <canvas id="glitchCanvas" width="3840" height="2160"></canvas>
+  </div>
+  <div class="memory-control">
+    <!-- 录制部分：计时器绝对定位，不干扰对齐 -->
+    <div class="record-group">
+      <button class="glass-icon-btn" id="recordBtn" title="录制">
+        <svg viewBox="0 0 24 24" id="recordIcon"><circle cx="12" cy="12" r="8" /></svg>
+      </button>
+      <span class="record-timer" id="recordTimer">00:00</span>
+    </div>
+    <button class="glass-btn" id="memoryBtn"><span class="main-text">沉入</span><span class="sub-text">Sinking</span></button>
+    <button class="glass-icon-btn" id="archiveBtn" title="档案">
+      <svg viewBox="0 0 24 24"><path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z"/><path d="M9 4L11 7H13L15 4"/></svg>
+    </button>
+  </div>
+  <div class="signature">记忆 · 呼吸 · 归位</div>
+</div>
+
+<div class="archive-panel" id="archivePanel">
+  <div class="archive-header"><h3>📼 档案 · 记忆沉录</h3><span id="closeArchive">✕</span></div>
+  <div class="archive-list" id="archiveList"><div style="text-align:center;opacity:0.5;padding:20px;">暂无录像</div></div>
+</div>
+<input type="file" id="fileInput" accept="image/*">
+
+<script>
+  (function(){
+    "use strict";
+    // ---------- 动画配置 ----------
+    const CONFIG_BASE = {
+      gridCols:3, gridRows:3, moveDuration:1.8, pauseDurationNormal:0.4, pauseDurationFinalExtra:3.4,
+      jitterBaseAmp:6.0, jitterFreq:1.2, depthOpacityMin:0.2, depthOpacityMax:0.8,
+      gridLineColor:'rgba(140,130,120,0.25)', gridLineWidth:2.2, bgColor:'#c5bfb2',
+      filterBlurMax:10.0, filterContrast:1.5, filterBrightness:1.1, cornerRadius:18, edgeSoftness:true, breathExpandAmp:6.0
+    };
+    let CONFIG = {...CONFIG_BASE, squareSizeRatio:0.52};
+    const DEFAULT_IMAGE_URL = 'https://picsum.photos/id/1043/1200/1200';
+    const canvas = document.getElementById('glitchCanvas'), ctx = canvas.getContext('2d',{alpha:false});
+    const CW=3840, CH=2160; canvas.width=CW; canvas.height=CH;
+    let 主体图像=null, imageLoaded=false, squareRect={x:0,y:0,size:0}, cellSize=0;
+    const slotPositions=[]; let pieces=[], permutations=[];
+    let animFrame=null, startTime=null;
+    const segmentMove=CONFIG.moveDuration, pauseNorm=CONFIG.pauseDurationNormal, pauseFinal=CONFIG.pauseDurationNormal+CONFIG.pauseDurationFinalExtra;
+    const segDurations=[]; for(let i=0;i<6;i++) segDurations.push(segmentMove+ (i===5?pauseFinal:pauseNorm));
+    const cycleLen=segDurations.reduce((a,b)=>a+b,0), centerX=CW/2, centerY=CH/2;
+    
+    const fileInput=document.getElementById('fileInput'), memoryBtn=document.getElementById('memoryBtn');
+    const recordBtn=document.getElementById('recordBtn'), archiveBtn=document.getElementById('archiveBtn');
+    const archivePanel=document.getElementById('archivePanel'), closeArchive=document.getElementById('closeArchive');
+    const archiveList=document.getElementById('archiveList');
+    const recordTimer = document.getElementById('recordTimer');
+    
+    let mediaRecorder=null, recordedChunks=[], isRecording=false, recordStartTime=0, recordTimeout=null;
+    const MAX_DURATION=120000;
+    const recCanvas=document.createElement('canvas'), recCtx=recCanvas.getContext('2d');
+    let videoArchive=[];
+    let timerInterval = null;
+
+    function toRoman(num) {
+      if (num <= 0) return '';
+      const roman = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI','XVII','XVIII','XIX','XX'];
+      return num <= 20 ? roman[num-1] : num.toString();
+    }
+
+    function getResponsiveRatio(){ return window.innerWidth<=768?0.65:0.52; }
+    function updateConfig(){ const r=getResponsiveRatio(); if(CONFIG.squareSizeRatio!==r){ CONFIG.squareSizeRatio=r; if(imageLoaded) calcSquareRect(); } }
+    function roundedRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); }
+    function initSlots(){ slotPositions.length=0; for(let r=0;r<3;r++) for(let c=0;c<3;c++) slotPositions.push({x:squareRect.x+c*cellSize, y:squareRect.y+r*cellSize}); pieces=Array.from({length:9},(_,i)=>({srcIdx:i, opacityBase:CONFIG.depthOpacityMin+(i/8)*(CONFIG.depthOpacityMax-CONFIG.depthOpacityMin)})); }
+    function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+    function genPerms(){ permutations=[Array.from({length:9},(_,i)=>i)]; let cur=[...permutations[0]]; for(let s=0;s<5;s++){ const sh=shuffle([...cur]); permutations.push(sh); cur=sh; } permutations.push([...permutations[0]]); }
+    function calcSquareRect(){ if(!主体图像?.width)return; let size=Math.min(CW,CH)*CONFIG.squareSizeRatio; const area=(size*size)/(CW*CH); if(area<0.38) size=Math.sqrt(0.45*CW*CH); else if(area>0.62) size=Math.sqrt(0.55*CW*CH); size=Math.min(size,Math.min(CW,CH)*0.6); squareRect={x:(CW-size)/2, y:(CH-size)/2, size}; cellSize=size/3; initSlots(); }
+    function setImage(img){ 主体图像=img; imageLoaded=true; updateConfig(); calcSquareRect(); genPerms(); startTime=performance.now(); if(!animFrame) animFrame=requestAnimationFrame(drawLoop); }
+    function loadImage(url){ const img=new Image(); img.crossOrigin='Anonymous'; img.onload=()=>setImage(img); img.onerror=()=>generateFallback(); img.src=url; }
+    function generateFallback(){ const off=document.createElement('canvas'); off.width=off.height=1024; const octx=off.getContext('2d'); octx.fillStyle='#c5bfb2'; octx.fillRect(0,0,1024,1024); const grad=octx.createRadialGradient(300,300,100,600,600,600); grad.addColorStop(0,'#b87a9a'); grad.addColorStop(0.5,'#5a7ea5'); grad.addColorStop(1,'#4e5a6e'); octx.fillStyle=grad; octx.fillRect(0,0,1024,1024); const img=new Image(); img.src=off.toDataURL(); img.onload=()=>setImage(img); }
+    function handleUpload(file){ const r=new FileReader(); r.onload=e=>{ const img=new Image(); img.onload=()=>setImage(img); img.src=e.target.result; }; r.readAsDataURL(file); }
+    
+    function getState(t){ let cyc=t%cycleLen, seg=0, acc=0; for(let i=0;i<segDurations.length;i++){ if(cyc<acc+segDurations[i]){ seg=i; break; } acc+=segDurations[i]; } const inSeg=cyc-acc, pauseDur=seg===5?pauseFinal:pauseNorm, isP=inSeg>=segmentMove; let prog=0, pauseProg=0; if(!isP) prog=inSeg/segmentMove; else{ prog=1; pauseProg=(inSeg-segmentMove)/pauseDur; } return {start:seg, end:seg+1, t:prog, isPause:isP, isFinal:seg===5&&isP, pauseProgress:seg===5&&isP?pauseProg:0}; }
+    function ease(x){ return -(Math.cos(Math.PI*x)-1)/2; }
+    function getSlot(st){ const et=ease(st.t), A=permutations[st.start], B=permutations[st.end]; return slotPositions.map((p,i)=>({x:p.x, y:p.y, pieceIdx: et<0.5? A[i]:B[i] })); }
+    function getOpacity(base,st){ if(st.isPause) return 1; if(st.t<0.5) return base; const b=(st.t-0.5)*2; return base*(1-b)+b; }
+    function jitter(i,el,st){ let f=st.isPause?0.25: Math.sin(Math.min(st.t,1-st.t)*Math.PI); const ph=i*1.8, amp=CONFIG.jitterBaseAmp*f; return {ox:amp*Math.sin(el*CONFIG.jitterFreq+ph), oy:amp*Math.cos(el*CONFIG.jitterFreq*0.9+ph*1.3)}; }
+    function filterStr(t){ const mid=0.5; return Math.max(0,1-(Math.abs(t-mid)/mid)*1.2); }
+    function breath(idx,prog){ if(prog<=0) return{ex:0,ey:0}; const p=slotPositions[idx], cx=p.x+cellSize/2, cy=p.y+cellSize/2; let dx=cx-centerX, dy=cy-centerY; const d=Math.hypot(dx,dy); if(d<0.001){dx=1;dy=0;}else{dx/=d;dy/=d;} const amt=CONFIG.breathExpandAmp*Math.sin(prog*Math.PI); return{ex:dx*amt, ey:dy*amt}; }
+    
+    function drawCell(tx,ty,piece,jx,jy,ex,ey,op,st){
+      if(!主体图像?.width) return; const fx=tx+jx+ex, fy=ty+jy+ey, iw=主体图像.width, ih=主体图像.height, src=piece.srcIdx, r=Math.floor(src/3), c=src%3, sw=iw/3, sh=ih/3;
+      ctx.save(); roundedRect(fx,fy,cellSize,cellSize,CONFIG.cornerRadius); ctx.clip(); ctx.globalAlpha=op;
+      if(!st.isPause){ const s=filterStr(st.t); ctx.filter=`blur(${CONFIG.filterBlurMax*s}px) contrast(${1+(CONFIG.filterContrast-1)*s}) brightness(${1+(CONFIG.filterBrightness-1)*s})`; ctx.imageSmoothingEnabled=false; }
+      else{ ctx.filter='none'; ctx.imageSmoothingEnabled=true; }
+      ctx.drawImage(主体图像, c*sw, r*sh, sw, sh, fx, fy, cellSize, cellSize);
+      if(CONFIG.edgeSoftness){ ctx.filter='none'; ctx.globalAlpha=op*0.4; ctx.strokeStyle='rgba(200,190,180,0.3)'; ctx.lineWidth=CONFIG.cornerRadius*0.8; roundedRect(fx,fy,cellSize,cellSize,CONFIG.cornerRadius); ctx.stroke(); }
+      ctx.filter='none'; ctx.globalAlpha=op*0.7; ctx.strokeStyle=CONFIG.gridLineColor; ctx.lineWidth=CONFIG.gridLineWidth; roundedRect(fx,fy,cellSize,cellSize,CONFIG.cornerRadius); ctx.stroke(); ctx.restore();
+    }
+    
+    function drawScene(now){
+      ctx.fillStyle=CONFIG.bgColor; ctx.fillRect(0,0,CW,CH);
+      if(!imageLoaded||!主体图像?.width){ ctx.fillStyle='#8a857a'; ctx.font='40px "Noto Serif SC"'; ctx.textAlign='center'; ctx.fillText('⟳ 等待记忆 …',CW/2,CH/2); return; }
+      if(!squareRect.size) calcSquareRect();
+      const st=getState(now), slots=getSlot(st);
+      for(let i=0;i<slots.length;i++){
+        const s=slots[i], piece=pieces[s.pieceIdx], op=getOpacity(piece.opacityBase,st), j=jitter(i,now,st);
+        let exp={ex:0,ey:0}; if(st.isFinal) exp=breath(i,st.pauseProgress);
+        drawCell(s.x,s.y,piece,j.ox,j.oy,exp.ex,exp.ey,op,st);
+      }
+      ctx.save(); ctx.globalAlpha=0.015; ctx.fillStyle='#fff'; ctx.fillRect(0,0,CW,CH); ctx.restore();
+    }
+    function drawLoop(now){ drawScene((now-startTime)/1000); animFrame=requestAnimationFrame(drawLoop); }
+    
+    function getRecordingRegion(){
+      const margin = cellSize * (0.2 - 1/6);
+      const size = squareRect.size + margin*2;
+      return { x: squareRect.x - margin, y: squareRect.y - margin, w: size, h: size };
+    }
+    function updateTimerDisplay(){
+      if (!isRecording) { recordTimer.style.visibility = 'hidden'; return; }
+      const elapsed = Math.min(Date.now() - recordStartTime, MAX_DURATION);
+      const secs = Math.floor(elapsed / 1000);
+      const mins = Math.floor(secs / 60);
+      const remainSec = secs % 60;
+      recordTimer.textContent = `${mins.toString().padStart(2,'0')}:${remainSec.toString().padStart(2,'0')}`;
+      recordTimer.style.visibility = 'visible';
+    }
+    function startRecording(){
+      if(isRecording||!imageLoaded) return;
+      const region = getRecordingRegion();
+      recCanvas.width = recCanvas.height = 2048;
+      const stream = recCanvas.captureStream(30);
+      let mimeType = 'video/mp4;codecs=avc1.42E01E';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp9';
+      }
+      mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
+      recordedChunks = [];
+      mediaRecorder.ondataavailable = e=>{ if(e.data.size) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = ()=>{
+        const blob = new Blob(recordedChunks, {type: mimeType.includes('mp4') ? 'video/mp4' : 'video/webm'});
+        const url = URL.createObjectURL(blob);
+        const idx = videoArchive.length + 1;
+        videoArchive.push({ blob, url, name: toRoman(idx) });
+        renderArchive();
+        if(recordTimeout) clearTimeout(recordTimeout);
+        if(timerInterval) clearInterval(timerInterval);
+        isRecording = false; recordBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg>`;
+        recordTimer.style.visibility = 'hidden';
+      };
+      mediaRecorder.start(1000);
+      isRecording = true; recordStartTime = Date.now();
+      recordBtn.innerHTML = `<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>`;
+      timerInterval = setInterval(updateTimerDisplay, 200);
+      updateTimerDisplay();
+      function capture(){ if(!isRecording) return;
+        const r = getRecordingRegion();
+        recCtx.fillStyle = CONFIG.bgColor; recCtx.fillRect(0,0,2048,2048);
+        recCtx.drawImage(canvas, r.x, r.y, r.w, r.h, 0, 0, 2048, 2048);
+        if(Date.now()-recordStartTime >= MAX_DURATION) stopRecording(); else requestAnimationFrame(capture);
+      }
+      capture();
+      recordTimeout = setTimeout(()=>stopRecording(), MAX_DURATION);
+    }
+    function stopRecording(){ if(mediaRecorder&&isRecording){ mediaRecorder.stop(); isRecording=false; } if(recordTimeout) clearTimeout(recordTimeout); if(timerInterval) clearInterval(timerInterval); }
+    
+    function renderArchive(){
+      if(videoArchive.length===0){ archiveList.innerHTML='<div style="text-align:center;opacity:0.5;padding:20px;">暂无录像</div>'; return; }
+      let h=''; videoArchive.forEach((v,i)=>{ h+=`<div class="archive-item"><span class="archive-item-name">${v.name}</span><div class="archive-item-actions"><button class="archive-btn down" data-i="${i}">保存</button><button class="archive-btn del" data-i="${i}">删除</button></div></div>`; });
+      archiveList.innerHTML=h;
+      document.querySelectorAll('.down').forEach(b=>b.addEventListener('click',e=>{ const i=e.target.dataset.i; const a=document.createElement('a'); const v=videoArchive[i]; const ext = v.blob.type.includes('mp4') ? '.mp4' : '.webm'; a.href=v.url; a.download=`记忆_${v.name}${ext}`; a.click(); }));
+      document.querySelectorAll('.del').forEach(b=>b.addEventListener('click',e=>{ const i=e.target.dataset.i; URL.revokeObjectURL(videoArchive[i].url); videoArchive.splice(i,1); renderArchive(); }));
+    }
+    
+    function init(){
+      updateConfig(); loadImage(DEFAULT_IMAGE_URL);
+      canvas.addEventListener('click',()=>{ genPerms(); startTime=performance.now(); });
+      memoryBtn.addEventListener('click',()=>fileInput.click());
+      fileInput.addEventListener('change',e=>{ if(e.target.files[0]){ handleUpload(e.target.files[0]); fileInput.value=''; } });
+      recordBtn.addEventListener('click',()=> isRecording? stopRecording(): startRecording());
+      archiveBtn.addEventListener('click',()=> archivePanel.style.display = archivePanel.style.display==='flex'?'none':'flex');
+      closeArchive.addEventListener('click',()=> archivePanel.style.display='none');
+      window.addEventListener('resize',()=>{ updateConfig(); if(imageLoaded) calcSquareRect(); });
+      setTimeout(()=>{ if(!animFrame){ startTime=performance.now(); animFrame=requestAnimationFrame(drawLoop); } },1000);
+    }
+    init();
+  })();
+</script>
+</body>
+</html>
